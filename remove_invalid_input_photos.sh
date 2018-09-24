@@ -1,12 +1,16 @@
 #!/bin/bash
 
 PHOTO_ROOT=tf_files/car_photos
+# For some reason tensorflow seems to have issue with a filename too long? Not
+# sure what is the limit, value chosen by try-and-error.
+MAX_FILENAME_LENGTH=200
 
 do_remove="no"
 
-# TODO: on 2018/09/23 the following seems not working on OSX. Not sure what is wrong.
-## options may be followed by one colon to indicate they have a required argument
-## Notice that using -o seems obligated
+# TODO: on 2018/09/23 the following seems not working on OSX. Not sure what is
+# wrong.
+## options may be followed by one colon to indicate they have a required
+## argument. Notice that using -o seems obligated
 #if ! options=$(getopt -o r -l do_remove -- "$@")
 #then
 #    # something went wrong, getopt will put out an error message for us
@@ -27,7 +31,7 @@ do_remove="no"
 #    shift
 #done
 
-if [ $1 = "-r" ]; then
+if [ "$1" = "-r" ]; then
     do_remove="yes"
 fi
 
@@ -38,11 +42,18 @@ for label in "$PHOTO_ROOT"/*; do
     fi
     echo "Processing directory \"$label\" ..."
     for file in "$label"/*; do
+        filename=$(basename "$file")
+        to_remove="no"
+        if [ ${#filename} -gt $MAX_FILENAME_LENGTH ]; then
+            echo "File name too long: $file"
+            to_remove="yes"
+        fi
         if ! identify "$file" >/dev/null 2>/dev/null; then
             echo "Invalid image: $file"
-            if [ $do_remove = "yes" ]; then
-                rm -f "$file"
-            fi
+            to_remove="yes"
+        fi
+        if [ "$to_remove" = "yes" -a "$do_remove" = "yes" ]; then
+            rm -f "$file"
         fi
     done
 done
