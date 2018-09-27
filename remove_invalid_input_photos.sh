@@ -7,33 +7,27 @@ MAX_FILENAME_LENGTH=200
 
 do_remove="no"
 
-# TODO: on 2018/09/23 the following seems not working on OSX. Not sure what is
-# wrong.
-## options may be followed by one colon to indicate they have a required
-## argument. Notice that using -o seems obligated
-#if ! options=$(getopt -o r -l do_remove -- "$@")
-#then
-#    # something went wrong, getopt will put out an error message for us
-#    exit 1
-#fi
-#
-## “eval” is necessary to handle arguments with space in them.
-#eval set -- “$options”
-#
-#while [ $# -gt 0 ]
-#do
-#    case $1 in
-#    -r|--do_remove) do_remove="yes" ;;
-#    (--) shift; break;;
-#    (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
-#    (*) break;;
-#    esac
-#    shift
-#done
-
-if [ "$1" = "-r" ]; then
-    do_remove="yes"
+# options may be followed by one colon to indicate they have a required
+# argument. Notice that using -o seems obligated
+if ! options=$(getopt -o r -l do_remove -- "$@")
+then
+    # something went wrong, getopt will put out an error message for us
+    exit 1
 fi
+
+# "eval" is necessary to handle arguments with space in them.
+eval set -- "$options"
+
+while [ $# -gt 0 ]
+do
+    case $1 in
+    -r|--do_remove) do_remove="yes" ;;
+    (--) shift; break;;
+    (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
+    (*) break;;
+    esac
+    shift
+done
 
 for label in "$PHOTO_ROOT"/*; do
     if [ ! -d "$label" ]; then
