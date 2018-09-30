@@ -1,6 +1,5 @@
 #!/bin/bash
 
-PHOTO_ROOT=tf_files/car_photos
 # For some reason tensorflow seems to have issue with a filename too long? Not
 # sure what is the limit, value chosen by try-and-error.
 MAX_FILENAME_LENGTH=200
@@ -28,6 +27,13 @@ do
     esac
     shift
 done
+
+if [ $# -lt 1 ]; then
+    echo "Usage: $0 <photo_root>"
+    exit 1
+fi
+
+PHOTO_ROOT="$1"
 
 for label in "$PHOTO_ROOT"/*; do
     if [ ! -d "$label" ]; then
