@@ -356,7 +356,7 @@ bottleneck_path_2_bottleneck_values = {}
 def create_bottleneck_file(bottleneck_path, image_lists, label_name, index,
                            image_dir, category, sess, jpeg_data_tensor,
                            decoded_image_tensor, resized_input_tensor,
-                           bottleneck_tensor):
+                           bottleneck_tensor, ignore_failure):
   """Create a single bottleneck file."""
   tf.logging.info('Creating bottleneck at ' + bottleneck_path)
   image_path = get_image_path(image_lists, label_name, index,
@@ -369,17 +369,23 @@ def create_bottleneck_file(bottleneck_path, image_lists, label_name, index,
         sess, image_data, jpeg_data_tensor, decoded_image_tensor,
         resized_input_tensor, bottleneck_tensor)
   except Exception as e:
-    raise RuntimeError('Error during processing file %s (%s)' % (image_path,
-                                                                 str(e)))
+    if ignore_failure:
+      print('Error during processing file %s (%s)' % (image_path,
+                                                      str(e)))
+      return False
+    else:
+      raise RuntimeError('Error during processing file %s (%s)' % (image_path,
+                                                                   str(e)))
   bottleneck_string = ','.join(str(x) for x in bottleneck_values)
   with open(bottleneck_path, 'w') as bottleneck_file:
     bottleneck_file.write(bottleneck_string)
+  return True
 
 
 def get_or_create_bottleneck(sess, image_lists, label_name, index, image_dir,
                              category, bottleneck_dir, jpeg_data_tensor,
                              decoded_image_tensor, resized_input_tensor,
-                             bottleneck_tensor, architecture):
+                             bottleneck_tensor, architecture, ignore_failure):
   """Retrieves or calculates bottleneck values for an image.
 
   If a cached version of the bottleneck data exists on-disk, return that,
@@ -401,6 +407,10 @@ def get_or_create_bottleneck(sess, image_lists, label_name, index, image_dir,
     resized_input_tensor: The input node of the recognition graph.
     bottleneck_tensor: The output tensor for the bottleneck values.
     architecture: The name of the model architecture.
+    ignore_failure: when True, when create_bottleneck_file() fails to create
+    bottleneck file, we do not raise exception, but instead simply return an
+    empty bottleneck values. This is used in cache step to ignore invalid
+    input photos.
 
   Returns:
     Numpy array of values produced by the bottleneck layer for the image.
@@ -412,10 +422,13 @@ def get_or_create_bottleneck(sess, image_lists, label_name, index, image_dir,
   bottleneck_path = get_bottleneck_path(image_lists, label_name, index,
                                         bottleneck_dir, category, architecture)
   if not os.path.exists(bottleneck_path):
-    create_bottleneck_file(bottleneck_path, image_lists, label_name, index,
-                           image_dir, category, sess, jpeg_data_tensor,
-                           decoded_image_tensor, resized_input_tensor,
-                           bottleneck_tensor)
+    success = create_bottleneck_file(
+        bottleneck_path, image_lists, label_name, index,
+        image_dir, category, sess, jpeg_data_tensor,
+        decoded_image_tensor, resized_input_tensor,
+        bottleneck_tensor, ignore_failure)
+    if not success and ignore_failure:
+      return []
   with open(bottleneck_path, 'r') as bottleneck_file:
     bottleneck_string = bottleneck_file.read()
   did_hit_error = False
@@ -428,7 +441,7 @@ def get_or_create_bottleneck(sess, image_lists, label_name, index, image_dir,
     create_bottleneck_file(bottleneck_path, image_lists, label_name, index,
                            image_dir, category, sess, jpeg_data_tensor,
                            decoded_image_tensor, resized_input_tensor,
-                           bottleneck_tensor)
+                           bottleneck_tensor, ignore_failure)
     with open(bottleneck_path, 'r') as bottleneck_file:
       bottleneck_string = bottleneck_file.read()
     # Allow exceptions to propagate here, since they shouldn't happen after a
@@ -473,7 +486,7 @@ def cache_bottlenecks(sess, image_lists, image_dir, bottleneck_dir,
         get_or_create_bottleneck(
             sess, image_lists, label_name, index, image_dir, category,
             bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
-            resized_input_tensor, bottleneck_tensor, architecture)
+            resized_input_tensor, bottleneck_tensor, architecture, True)
 
         how_many_bottlenecks += 1
         if how_many_bottlenecks % 100 == 0:
@@ -526,7 +539,7 @@ def get_random_cached_bottlenecks(sess, image_lists, how_many, category,
       bottleneck = get_or_create_bottleneck(
           sess, image_lists, label_name, image_index, image_dir, category,
           bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
-          resized_input_tensor, bottleneck_tensor, architecture)
+          resized_input_tensor, bottleneck_tensor, architecture, False)
       ground_truth = np.zeros(class_count, dtype=np.float32)
       ground_truth[label_index] = 1.0
       bottlenecks.append(bottleneck)
@@ -542,7 +555,7 @@ def get_random_cached_bottlenecks(sess, image_lists, how_many, category,
         bottleneck = get_or_create_bottleneck(
             sess, image_lists, label_name, image_index, image_dir, category,
             bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
-            resized_input_tensor, bottleneck_tensor, architecture)
+            resized_input_tensor, bottleneck_tensor, architecture, False)
         ground_truth = np.zeros(class_count, dtype=np.float32)
         ground_truth[label_index] = 1.0
         bottlenecks.append(bottleneck)
